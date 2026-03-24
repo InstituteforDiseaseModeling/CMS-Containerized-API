@@ -1,0 +1,28 @@
+(import (rnrs) (emodl cmslib))
+
+(start-model "seir")
+
+(species S 990)
+(species E 0)
+(species I 10)
+(species R 0)
+(species CI 0)
+
+(param beta 0.52)
+(param Kei 0.25)
+(param Kir 0.2)
+(param Kwaning 0.0027397260273972603)
+
+(reaction transmit (S) (E CI) (/ (* beta S I) (+ S E I R)) 0)
+(reaction shed (E) (I) (* Kei E) 0)
+(reaction recover (I) (R) (* Kir I) 0)
+(reaction waning (R) (S) (* Kwaning R) 0)
+
+(observe S S)
+(observe E E)
+(observe I I)
+(observe R R)
+(observe cumulative CI)
+(observe population (+ S E I R))
+
+(end-model)

@@ -1,0 +1,85 @@
+; polio_observation_model
+
+(import (rnrs) (emodl cmslib))
+
+(start-model "polio_surveillance.emodl")
+
+(species S 2500)
+(species I 5)
+(species Cu)
+(species Cd)
+(species R)
+(species V)
+
+(func population  (sum S I Cu Cd R V))
+(func cases (+ Cu Cd))
+(func vaccinated (/ V population))
+
+(observe vaccinated_ratio vaccinated)
+(observe infection_ratio (/ I population))
+(observe cases_ratio (/ cases population))
+(observe susceptible_ratio (/ S population))
+(observe recovered_ratio (/ R population))
+(observe population population)
+(observe susceptibles S)
+(observe infections I)
+(observe cases cases)
+(observe observations Cd)
+(observe recovereds R)
+(observe vaccinated V)
+
+(param mu1 0.005)		;birth rate
+(param mu2 0.005)		;death rate
+(param alpha (/ 1 200))		;case/infection rate
+(param gammaC (/ 1 30))		;recovery rate cases
+(param gammaI (/ 1 30))		;recovery rate infections
+(param betaC (/ 1 1000))	;infectivity rate cases
+(param betaI (/ 1 8000))	;infectivity rate infections
+;(param theta .01)		;RI vaccination rate less than 1
+(param detection .8)		;active surveillance sensitivity
+
+;parameters for vaccination outbreak response
+(param x1 .25)		;upper asymptote is also the maximum coverage level for outbreak response
+(param x2 0)		;lower asymptote
+(param x3 1)	
+(param x4 1)
+(param x5 .5)		;speed of response/growth rate
+(param x7 3)
+(param x8 0)		;vertical shift
+
+;infection-triggered
+;x6 between 80-120 produces multiple vaccination events when paired with alpha 1 over 200
+;274 approximates 250 threshhold
+;524 approximates 500 threshhold
+;(param x6 600)		;median horizontal shift point which is somewhat higher than the trigger point
+;(func vaccination_above_threshhold (+ x8 (/ (+ x1 x2) (+ x3 (* x4 (^ (exp(* x5 (- x6 I))) (/ 1 x7)))))))
+;(observe vaccination_mult vaccination_above_threshhold)
+
+;case detection-triggered
+;use vaccination campaign calculation spreadsheet to estimate parameter x6
+;44 approximates 20 threshhold
+;39 approximates 15 threshhold
+;34 approximates 10 threshhold
+;29 approximates 5 threshhold
+(param x6 34)		;median horizontal shift point which is somewhat higher than the trigger point
+(func vaccination_above_threshhold (+ x8 (/ (+ x1 x2) (+ x3 (* x4 (^ (exp(* x5 (- x6 Cd))) (/ 1 x7)))))))
+(observe vaccination_mult vaccination_above_threshhold)
+
+(reaction birth			()	(S)	(* mu1 population))
+(reaction deathS		(S)	()	(* mu2 S))
+(reaction deathV		(V)	()	(* mu2 V))
+(reaction deathI		(I)	()	(* mu2 I))
+(reaction deathCu		(Cu)	()	(* mu2 Cu))
+(reaction deathCd		(Cd)	()	(* mu2 Cd))
+(reaction deathR		(R)	()	(* mu2 R))
+(reaction outbreak_response	(S)	(V)	(* vaccination_above_threshhold S))
+;(reaction routine_vaccination 	(S)	(V)	(* theta S))
+(reaction infectI		(S)	(I)	(* betaI S I))
+(reaction infectC		(S)	(I)	(* betaC Cu))
+(reaction detect_cases		(Cu)	(Cd)	(* detection Cu))
+(reaction cases			(I)	(Cu)	(* alpha I))
+(reaction recoveryI		(I)	(R)	(* gammaI I))
+(reaction recoveryCu		(Cu)	(R)	(* gammaC Cu))
+(reaction recoveryCd		(Cd)	(R)	(* gammaC Cd))
+
+(end-model)

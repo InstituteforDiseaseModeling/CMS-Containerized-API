@@ -1,0 +1,6 @@
+pythonnet
+matplotlib
+pandas
+fastapi
+uvicorn
+pydantic
