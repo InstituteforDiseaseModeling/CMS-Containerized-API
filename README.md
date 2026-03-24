@@ -1,95 +1,279 @@
-# IDM Compartmental Modeling Software (CMS) in a Docker Container
+# CMS API Deployment Guide
 
-Includes Python interface example using [Python.NET](https://pythonnet.github.io/)
+## Repository Changes
 
-## Quick Start with Docker
+This implementation extends the **cms-containerized** repository provided by IDM. The following modifications were made:
 
-### Get a local copy of the docker container image
+- Renamed the original Dockerfile:
+  - `Dockerfile` → `Dockerfile.cms`
+  - Azure requires a `Dockerfile` at the repository root, so this preserves the original file.
 
-**Option 1- skip to examples below and let Docker pull the requisite image**
+- Added a new `Dockerfile` for cloud deployment.
 
-**Option 2- pull the image from Docker Hub:**
+- Added validation and API components:
+  - `emodl_validator.py` — validates EMODL syntax and reports errors
+  - `schemas.py` — defines API input/output structure
+  - `api_main.py` — main FastAPI application
+  - `simple_cms_wrapper.py` — handles file I/O and executes EMODL → trajectory processing
 
-```bash
-docker pull clorton/idmcms:1.1
-```
+- Updated dependencies:
+  - Added `fastapi`, `uvicorn`, and `pydantic` to `requirements.txt`
 
-**Option 3- build the image locally:**
+- Added tests:
+  - Ensures validation functionality works as expected
 
-```bash
-docker build --tag clorton/idmcms:1.1 .
-```
+> **Note:** These changes are visible when copying the repository locally and opening a pull request. Linksbridge does not have write access to the original repository.
 
-### Run a Model with CMS
+---
 
-Options:
+## Local Deployment
 
-Note: the examples below use Unix/Linux bash syntax to get the current directory, `$(pwd)`. If running on Windows, explicitly list the current path in place of `$(pwd)`.
+### Prerequisites
+- Anaconda installed
 
-1. _Run the default model/command in the container (`python3 /cms/seir.py`)._
+### Setup Steps
 
-```bash
-docker run --rm -it -v $(pwd):/host -w /host clorton/idmcms:1.1
-```
+1. **Unzip the project folder**
 
-This will write trajectory data to `trajectories.net.csv` and a plot to `trajectory.png` in the current directory, mapped to `/host` in the container. _The model is not modifiable as this default command runs the model included in the container. See options 2 or 3 for running other models._
+2. **Create a virtual environment**
 
-2. _Run the model of your choice, written in EMODL, directly in CMS with the Mono .Net runtime.
+    conda create -n cms anaconda
 
-```bash
-docker run --rm -it -v $(pwd)/models:/host -w /host clorton/idmcms:1.1 mono /cms/compartments.exe --model seir.emodl --config seir.cfg
-```
+3. **Activate the environment**
 
-- Replace `$(pwd)/models` with your model directory path.
-- Replace `seir.emodl` and `seir.cfg` with your model file and configuration, respectively.
+    conda activate cms
 
-This will write trajectory data to file specified in the configuration.
+4. **Install dependencies**
 
-3. _Run a model, e.g. SEIR, with Python._
+    cd <path-to-unzipped-folder>  
+    pip install --upgrade -r requirements.txt
 
-```bash
-docker run --rm -it -v $(pwd)/models:/host -w /host clorton/idmcms:1.1 python3 seir.py --png
-```
+5. **Run the API**
 
-This example, called from the root of the repository on your machine or codespace, runs the example `seir.py`, SEIR model implemented in Python and writes `trajectories.net.csv` and `trajectory.png` into the mapped directory (`./models` in the example).
+    python api_main.py
 
-### Sample Output
+---
 
-#### SEIR Trajectory Data (CMS)
+### Access the Service
 
-```text
-FrameworkVersion,"1.0.176.23","clorton (CMS/Main/framework)"
-sampletimes,0,1,2,3,...,179,180
-S{0},990,983,979,975,...,372,375
-E{0},0,5,7,7,...,0,0
-I{0},10,10,12,10,...,0,0
-R{0},0,2,2,8,...,628,625
-cumulative{0},0,7,11,15,...,938,938
-population{0},1000,1000,1000,1000,...,1000,1000
-```
+- The API will run at:
 
-Note that CMS can run multiple realizations of the model in a single invocation. The realization index is appended to each column to differentiate results from separate realizations.
+    http://127.0.0.1:8000
 
-#### SEIR Trajectory Data (Python)
+- Open Swagger UI:
 
-```text
-,S{0},E{0},I{0},R{0},cumulative{0},population{0}
-0,990.0,0.0,10.0,0.0,0.0,1000.0
-1,985.0,4.0,9.0,2.0,5.0,1000.0
-2,982.0,6.0,9.0,3.0,8.0,1000.0
-3,977.0,9.0,7.0,7.0,13.0,1000.0
-...
-178,292.0,0.0,0.0,708.0,1040.0,1000.0
-179,294.0,0.0,0.0,706.0,1040.0,1000.0
-```
+    http://127.0.0.1:8000/docs
 
-Note that Python trajectory data comes from a Pandas Dataframe and omits the "index" column name in the first column of the first row.
+---
 
-#### SEIR Trajectory Plot (Python)
+### Usage
 
-![SEIR Trajectory Plot](./trajectory.png)
+- Select an endpoint in `/docs`
+- Modify parameters as needed
+- Execute the request
 
-## Additional Information and Documentation
+> Processing may take several minutes depending on inputs.
 
-- [PyCMS](https://github.com/InstituteforDiseaseModeling/pycms) : The initial motivation for packaging CMS in a container.
-- [IDM-CMS](https://github.com/InstituteforDiseaseModeling/IDM-CMS) : Source code and documentation for the CMS engine.
+---
+
+## Cloud Deployment (Azure CLI)
+
+This deployment works **as-is** with no additional code changes.
+
+### Prerequisites
+
+- Azure CLI installed  
+- Logged into the correct subscription  
+- Proper permissions granted  
+
+---
+
+### Initial Deployment
+
+#### 1. Create Resources
+
+**Resource Group**
+
+    az group create \
+      --name <your-resource-group-name> \
+      --location eastus2
+
+**Azure Container Registry (ACR)**
+
+    az acr create \
+      --name <your-acr-name> \
+      --resource-group <your-resource-group-name> \
+      --sku Basic \
+      --admin-enabled true
+
+**Container Apps Environment**
+
+    az containerapp env create \
+      --name <your-environment-name> \
+      --resource-group <your-resource-group-name> \
+      --location eastus2
+
+---
+
+#### 2. Build and Push Image
+
+    az acr build \
+      --registry <your-acr-name> \
+      --image <your-image-name>:latest .
+
+---
+
+#### 3. Create Container App
+
+    az containerapp create \
+      --name <your-app-name> \
+      --resource-group <your-resource-group-name> \
+      --environment <your-environment-name> \
+      --image <your-acr-name>.azurecr.io/cms-api:latest \
+      --target-port 3100 \
+      --ingress external \
+      --min-replicas 0 \
+      --max-replicas 2 \
+      --cpu 1.0 \
+      --memory 2Gi
+
+---
+
+### Updating an Existing App
+
+1. Modify code locally
+
+2. Build and push new image:
+
+    az acr build \
+      --registry <your-acr-name> \
+      --image <your-image-name>:latest .
+
+3. Update the container app:
+
+    az containerapp update \
+      --name <your-app-name> \
+      --resource-group <your-resource-group-name> \
+      --image <your-acr-name>.azurecr.io/<your-image-name>:latest
+
+---
+
+## Maintenance Tips
+
+- This workflow relies on local deployments and is more fragile than typical CI/CD pipelines
+- Strongly recommended:
+  - Code reviews
+  - Testing before deployment
+- Consider assigning a dedicated reviewer/deployer for consistency
+
+---
+
+## Cloud Deployment (Azure Portal)
+
+### Required Resources
+
+- Azure Container Registry (ACR)
+- Azure Web App (Containers)
+
+---
+
+## Azure Container Registry Setup
+
+1. Go to: https://portal.azure.com  
+
+2. Create resource:
+   - Search **Container Registry**
+   - Click **Create**
+
+3. Configure:
+   - **Subscription**: Select
+   - **Resource Group**: Create or select
+   - **Registry Name**: Must be globally unique
+   - **Region**: Closest to users
+   - **SKU**:
+     - Basic (testing)
+     - Standard (recommended)
+     - Premium (advanced features such as private endpoints and geo-replication)
+
+4. Networking:
+   - Public access: Enabled (default)
+   - Allow trusted services: Yes
+
+5. Encryption:
+   - Default settings are sufficient
+
+6. Review + Create
+
+7. After deployment:
+   - Go to resource
+   - Copy **Login Server** (e.g. `myregistry.azurecr.io`)
+
+8. Enable:
+   - **Admin Credentials** under Access Keys
+
+---
+
+## Azure Web App Setup
+
+### 1. Create Web App
+
+- Go to **App Services → Create**
+
+#### Basics
+
+- Name: `cms-api`
+- Publish: Docker Container
+- Operating System: Linux
+- Region: Closest region
+- App Service Plan: **B1 or higher**
+
+#### Docker Tab
+
+- Use a temporary image:
+
+    mcr.microsoft.com/appsvc/staticsite:latest
+
+- Create the app
+
+---
+
+### 2. Configure Deployment
+
+1. Navigate to:
+
+    Web App → Deployment Center
+
+2. Configure:
+   - Source: **GitHub Actions**
+   - Connect repository
+
+3. Add workflow:
+   - Generates a YAML pipeline in your repository
+
+4. Select:
+   - Azure Container Registry
+
+5. Set image name:
+
+    idmcontainers/streamlit-demo-app
+
+---
+
+### 3. Continuous Deployment
+
+- GitHub Actions will:
+  - Automatically build
+  - Automatically deploy
+  - Trigger on every push to the configured branch
+
+---
+
+## Summary
+
+This project provides:
+
+- A FastAPI-based CMS API
+- Local development via Anaconda
+- Cloud deployment via:
+  - Azure CLI (Container Apps)
+  - Azure Portal (Web Apps + GitHub Actions)
